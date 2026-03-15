@@ -1,9 +1,7 @@
-petshelter.localhost {
-    tls internal
+shelter-for-pets.duckdns.org {
     reverse_proxy petshelter-api:8080
 }
 
-vetclinic.localhost {
-    tls internal
+clinic-for-pets.duckdns.org {
     reverse_proxy vetclinic-api:8080
 }
