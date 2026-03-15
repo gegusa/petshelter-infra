@@ -1,0 +1,9 @@
+petshelter.localhost {
+    tls internal
+    reverse_proxy petshelter-api:8080
+}
+
+vetclinic.localhost {
+    tls internal
+    reverse_proxy vetclinic-api:8080
+}

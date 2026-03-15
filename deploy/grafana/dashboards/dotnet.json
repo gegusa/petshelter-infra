@@ -1,0 +1,74 @@
+{
+  "title": "PetShelter Stack",
+  "uid": "petshelter-stack",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "job",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(http_requests_received_total, job)",
+        "label": "Service",
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(http_requests_received_total{job=~\"$job\"}[1m])",
+          "legendFormat": "{{job}} {{method}} {{path}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Request Duration p95 (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=~\"$job\"}[5m])) * 1000",
+          "legendFormat": "{{job}} p95"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "HTTP Error Rate (4xx/5xx)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(http_requests_received_total{job=~\"$job\", code=~\"4..|5..\"}[1m])",
+          "legendFormat": "{{job}} {{code}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": ".NET GC Heap (bytes)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "dotnet_gc_heap_size_bytes{job=~\"$job\"}",
+          "legendFormat": "{{job}} {{generation}}"
+        }
+      ]
+    }
+  ]
+}
