@@ -42,7 +42,7 @@
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=~\"$job\"}[5m])) * 1000",
+          "expr": "histogram_quantile(0.95, sum by(job, le) (rate(http_request_duration_seconds_bucket{job=~\"$job\"}[5m]))) * 1000",
           "legendFormat": "{{job}} p95"
         }
       ]
@@ -68,8 +68,8 @@
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "dotnet_gc_heap_size_bytes{job=~\"$job\"}",
-          "legendFormat": "{{job}} {{generation}}"
+          "expr": "dotnet_total_memory_bytes{job=~\"$job\"}",
+          "legendFormat": "{{job}}"
         }
       ]
     }
