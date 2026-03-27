@@ -29,7 +29,7 @@
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "rate(http_requests_received_total{job=~\"$job\"}[1m])",
+          "expr": "rate(http_requests_received_total{job=~\"$job\"}[5m])",
           "legendFormat": "{{job}} {{method}} {{controller}}/{{action}}"
         }
       ]
@@ -55,7 +55,7 @@
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "rate(http_requests_received_total{job=~\"$job\", code=~\"4..|5..\"}[1m])",
+          "expr": "rate(http_requests_received_total{job=~\"$job\", code=~\"4..|5..\"}[5m])",
           "legendFormat": "{{job}} {{code}}"
         }
       ]
