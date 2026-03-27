@@ -13,6 +13,9 @@
         "datasource": "Prometheus",
         "query": "label_values(http_requests_received_total, job)",
         "label": "Service",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
         "current": {}
       }
     ]
