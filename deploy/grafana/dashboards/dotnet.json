@@ -30,7 +30,7 @@
       "targets": [
         {
           "expr": "rate(http_requests_received_total{job=~\"$job\"}[1m])",
-          "legendFormat": "{{job}} {{method}} {{path}}"
+          "legendFormat": "{{job}} {{method}} {{controller}}/{{action}}"
         }
       ]
     },
