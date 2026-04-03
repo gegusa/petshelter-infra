@@ -34,10 +34,10 @@ send_requests() {
         status=$(curl -sk -o /dev/null -w "%{http_code}" "$url")
         if [ "$status" = "200" ]; then
             echo "  [$i/$REQUESTS] $label → HTTP $status  OK"
-            ((ok++))
+            ok=$((ok + 1))
         else
             echo "  [$i/$REQUESTS] $label → HTTP $status  FAIL"
-            ((fail++))
+            fail=$((fail + 1))
         fi
         sleep 0.2
     done
