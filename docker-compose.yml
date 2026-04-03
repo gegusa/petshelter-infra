@@ -13,25 +13,65 @@ services:
       timeout: 5s
       retries: 10
 
-  petshelter-api:
+  petshelter-api-1:
     image: ghcr.io/${GITHUB_OWNER}/petshelter-api:${PETSHELTER_TAG:-latest}
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=pet_shelter;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD}"
       VetClinic__BaseUrl: http://vetclinic-api:8080
+    networks:
+      default:
+        aliases:
+          - petshelter-api
     depends_on:
       postgres:
         condition: service_healthy
 
-  vetclinic-api:
+  petshelter-api-2:
+    image: ghcr.io/${GITHUB_OWNER}/petshelter-api:${PETSHELTER_TAG:-latest}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=pet_shelter;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD}"
+      VetClinic__BaseUrl: http://vetclinic-api:8080
+    networks:
+      default:
+        aliases:
+          - petshelter-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      petshelter-api-1:
+        condition: service_started
+
+  vetclinic-api-1:
     image: ghcr.io/${GITHUB_OWNER}/vetclinic-api:${VETCLINIC_TAG:-latest}
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=vet_clinic;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD}"
       PetShelter__BaseUrl: http://petshelter-api:8080
+    networks:
+      default:
+        aliases:
+          - vetclinic-api
     depends_on:
       postgres:
         condition: service_healthy
+
+  vetclinic-api-2:
+    image: ghcr.io/${GITHUB_OWNER}/vetclinic-api:${VETCLINIC_TAG:-latest}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=vet_clinic;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD}"
+      PetShelter__BaseUrl: http://petshelter-api:8080
+    networks:
+      default:
+        aliases:
+          - vetclinic-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      vetclinic-api-1:
+        condition: service_started
 
   caddy:
     image: caddy:2-alpine
@@ -43,8 +83,10 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - petshelter-api
-      - vetclinic-api
+      - petshelter-api-1
+      - petshelter-api-2
+      - vetclinic-api-1
+      - vetclinic-api-2
 
   adminer:
     image: adminer
@@ -60,8 +102,10 @@ services:
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
-      - petshelter-api
-      - vetclinic-api
+      - petshelter-api-1
+      - petshelter-api-2
+      - vetclinic-api-1
+      - vetclinic-api-2
 
   grafana:
     image: grafana/grafana:latest

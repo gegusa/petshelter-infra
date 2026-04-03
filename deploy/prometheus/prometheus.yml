@@ -5,10 +5,14 @@ global:
 scrape_configs:
   - job_name: petshelter-api
     static_configs:
-      - targets: ["petshelter-api:8080"]
+      - targets:
+          - "petshelter-api-1:8080"
+          - "petshelter-api-2:8080"
     metrics_path: /metrics
 
   - job_name: vetclinic-api
     static_configs:
-      - targets: ["vetclinic-api:8080"]
+      - targets:
+          - "vetclinic-api-1:8080"
+          - "vetclinic-api-2:8080"
     metrics_path: /metrics

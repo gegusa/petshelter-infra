@@ -1,7 +1,31 @@
 shelter-for-pets.duckdns.org {
-    reverse_proxy petshelter-api:8080
+    log {
+        output stdout
+        format json
+    }
+
+    reverse_proxy petshelter-api-1:8080 petshelter-api-2:8080 {
+        lb_policy least_conn
+
+        health_uri     /metrics
+        health_interval 10s
+        health_timeout  5s
+        health_status  200
+    }
 }
 
 clinic-for-pets.duckdns.org {
-    reverse_proxy vetclinic-api:8080
+    log {
+        output stdout
+        format json
+    }
+
+    reverse_proxy vetclinic-api-1:8080 vetclinic-api-2:8080 {
+        lb_policy least_conn
+
+        health_uri     /metrics
+        health_interval 10s
+        health_timeout  5s
+        health_status  200
+    }
 }
