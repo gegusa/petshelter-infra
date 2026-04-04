@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Демонстрация балансировки нагрузки
-# Запуск: ./demo-lb.sh
-# Переменные окружения для переопределения URL:
-#   SHELTER_URL=https://shelter-for-pets.duckdns.org
-#   CLINIC_URL=https://clinic-for-pets.duckdns.org
 
 set -euo pipefail
 
