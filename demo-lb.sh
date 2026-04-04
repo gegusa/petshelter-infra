@@ -26,20 +26,22 @@ pause() {
     echo
 }
 
+# Отправляет запросы и показывает какой инстанс ответил (через заголовок X-Served-By)
 send_requests() {
     local url="$1"
-    local label="$2"
     local ok=0 fail=0
     for i in $(seq 1 "$REQUESTS"); do
-        status=$(curl -sk -o /dev/null -w "%{http_code}" "$url")
+        headers=$(curl -sk -D - -o /dev/null "$url")
+        status=$(echo "$headers" | awk 'NR==1{print $2}' | tr -d '\r')
+        served_by=$(echo "$headers" | grep -i "x-served-by:" | tr -d '\r' | awk '{print $2}')
         if [ "$status" = "200" ]; then
-            echo "  [$i/$REQUESTS] $label → HTTP $status  OK"
+            echo "  [$i/$REQUESTS] HTTP $status  ← ${served_by:-unknown}"
             ok=$((ok + 1))
         else
-            echo "  [$i/$REQUESTS] $label → HTTP $status  FAIL"
+            echo "  [$i/$REQUESTS] HTTP $status  FAIL"
             fail=$((fail + 1))
         fi
-        sleep 0.2
+        sleep 0.3
     done
     echo
     echo "  Итог: успешных=$ok  ошибок=$fail"
@@ -57,104 +59,81 @@ docker compose ps \
 echo
 echo "  Caddy проверяет здоровье каждого инстанса каждые 10 сек (GET /metrics)."
 echo "  Политика балансировки: least_conn — запрос идёт к наименее загруженному."
+echo "  Каждый ответ несёт заголовок X-Served-By с адресом обработавшего инстанса."
 
 pause
 
 
 divider "ШАГ 2 — Нормальная работа: $REQUESTS запросов к PetShelter"
 
-echo "  СОВЕТ: откройте второй терминал и выполните:"
-echo "    docker compose logs -f petshelter-api-1 petshelter-api-2"
-echo "  Будет видно, что оба инстанса обрабатывают запросы."
+send_requests "$SHELTER_URL/api/animals"
 echo
-
-send_requests "$SHELTER_URL/api/animals" "PetShelter"
-
-echo
-echo "  Метрики по инстансам — запустите в браузере или curl:"
-echo "    Prometheus: http://localhost:9090"
-echo "    Запрос:     http_requests_received_total{job='petshelter-api'}"
-echo "  Будут отдельные серии для petshelter-api-1:8080 и petshelter-api-2:8080."
+echo "  Запросы распределяются между обоими инстансами."
 
 pause
 
 
-divider "ШАГ 3 — Отказ одного инстанса"
+divider "ШАГ 3 — Нормальная работа: $REQUESTS запросов к VetClinic"
+
+send_requests "$CLINIC_URL/api/statistics"
+echo
+echo "  Аналогично для VetClinic."
+
+pause
+
+
+divider "ШАГ 4 — Отказ инстанса petshelter-api-2"
 
 echo "  Останавливаем petshelter-api-2..."
 docker compose stop petshelter-api-2
 echo
-echo "  Состояние после остановки:"
 docker compose ps petshelter-api-1 petshelter-api-2
 echo
-echo "  Caddy обнаружит недоступность при следующей health-проверке (до 10 сек)"
-echo "  и перестанет направлять запросы на упавший инстанс."
-
+echo "  Ожидание: Caddy обнаружит отказ при health-check (до 10 сек)..."
 sleep 12
 echo
-echo "  Пауза 12 сек истекла — health-check сработал. Отправляем $REQUESTS запросов:"
+echo "  Отправляем $REQUESTS запросов:"
 echo
 
-send_requests "$SHELTER_URL/api/animals" "PetShelter (1 инстанс)"
-
+send_requests "$SHELTER_URL/api/animals"
 echo
-echo "  Все запросы прошли через petshelter-api-1. Сервис продолжает работать."
+echo "  Все запросы идут только через petshelter-api-1."
 
 pause
 
 
-divider "ШАГ 4 — Восстановление инстанса"
+divider "ШАГ 5 — Восстановление petshelter-api-2"
 
-echo "  Запускаем petshelter-api-2 снова..."
+echo "  Запускаем petshelter-api-2..."
 docker compose start petshelter-api-2
 echo
 echo "  Ожидание: Caddy вернёт инстанс в ротацию после успешного health-check (10 сек)..."
 sleep 12
 echo
-echo "  Состояние после восстановления:"
 docker compose ps petshelter-api-1 petshelter-api-2
 echo
-echo "  Отправляем $REQUESTS запросов — оба инстанса должны участвовать:"
+echo "  Отправляем $REQUESTS запросов:"
 echo
 
-send_requests "$SHELTER_URL/api/animals" "PetShelter"
-
+send_requests "$SHELTER_URL/api/animals"
 echo
-echo "  Балансировка восстановлена. Проверьте в логах Caddy или Prometheus."
+echo "  Нагрузка снова распределена между двумя инстансами."
 
 pause
 
 
-divider "ШАГ 5 — То же самое для VetClinic"
+divider "ШАГ 6 — Проверка вручную (curl)"
 
-echo "  Останавливаем vetclinic-api-2..."
-docker compose stop vetclinic-api-2
-sleep 12
-
-echo "  Запросы к VetClinic при одном инстансе:"
-send_requests "$CLINIC_URL/api/statistics" "VetClinic (1 инстанс)"
-
+echo "  Можно также проверить заголовок вручную:"
 echo
-echo "  Восстанавливаем vetclinic-api-2..."
-docker compose start vetclinic-api-2
-sleep 12
-
-echo "  Запросы после восстановления:"
-send_requests "$CLINIC_URL/api/statistics" "VetClinic"
-
-pause
-
-
-divider "ИТОГ"
-echo "  Продемонстрировано:"
-echo "  1. Два инстанса на каждый сервис работают параллельно"
-echo "  2. Политика least_conn распределяет нагрузку по активным соединениям"
-echo "  3. При отказе инстанса Caddy автоматически исключает его из ротации"
-echo "  4. При восстановлении инстанс возвращается в ротацию без перезапуска системы"
+echo "    curl -sI $SHELTER_URL/api/animals | grep x-served-by"
 echo
-echo "  Логи Caddy (upstream для каждого запроса):"
-echo "    docker compose logs caddy | jq -r '.upstream // empty' | sort | uniq -c"
-echo
-echo "  Метрики в Prometheus (количество запросов по инстансам):"
-echo "    http://localhost:9090/graph"
-echo "    Запрос: rate(http_requests_received_total{job='petshelter-api'}[1m])"
+curl -sI "$SHELTER_URL/api/animals" | grep -i x-served-by || true
+curl -sI "$SHELTER_URL/api/animals" | grep -i x-served-by || true
+curl -sI "$SHELTER_URL/api/animals" | grep -i x-served-by || true
+curl -sI "$SHELTER_URL/api/animals" | grep -i x-served-by || true
+
+divider "Демонстрация завершена"
+echo "  Метрики по инстансам в Prometheus:"
+echo "    http://localhost:9090"
+echo "    rate(http_requests_received_total{job=\"petshelter-api\"}[1m])"
