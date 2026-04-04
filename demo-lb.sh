@@ -21,7 +21,6 @@ pause() {
     echo
 }
 
-# Отправляет запросы и показывает какой инстанс ответил (через заголовок X-Served-By)
 send_requests() {
     local url="$1"
     local ok=0 fail=0
@@ -40,6 +39,43 @@ send_requests() {
     done
     echo
     echo "  Итог: успешных=$ok  ошибок=$fail"
+}
+
+demo_failover() {
+    local service="$1"
+    local url="$2"
+    local peer="$3"
+
+    divider "Отказ $service"
+    echo "  Останавливаем $service..."
+    docker compose stop "$service"
+    echo
+    docker compose ps "$peer" "$service"
+    echo
+    echo "  Ожидание: Caddy обнаружит отказ при health-check (до 10 сек)..."
+    sleep 12
+    echo "  Отправляем $REQUESTS запросов — все должны уйти на $peer:"
+    echo
+    send_requests "$url"
+    echo
+    echo "  Все запросы обработаны единственным живым инстансом ($peer)."
+    pause
+
+    divider "Восстановление $service"
+    echo "  Запускаем $service..."
+    docker compose start "$service"
+    echo
+    echo "  Ожидание: Caddy вернёт инстанс в ротацию после успешного health-check (10 сек)..."
+    sleep 12
+    echo
+    docker compose ps "$peer" "$service"
+    echo
+    echo "  Отправляем $REQUESTS запросов — нагрузка должна снова распределиться:"
+    echo
+    send_requests "$url"
+    echo
+    echo "  Оба инстанса снова в ротации."
+    pause
 }
 # ─────────────────────────────────────────────
 
@@ -77,58 +113,24 @@ echo "  Аналогично для VetClinic."
 pause
 
 
-divider "ШАГ 4 — Отказ инстанса petshelter-api-2"
-
-echo "  Останавливаем petshelter-api-2..."
-docker compose stop petshelter-api-2
-echo
-docker compose ps petshelter-api-1 petshelter-api-2
-echo
-echo "  Ожидание: Caddy обнаружит отказ при health-check (до 10 сек)..."
-sleep 12
-echo
-echo "  Отправляем $REQUESTS запросов:"
-echo
-
-send_requests "$SHELTER_URL/api/animals"
-echo
-echo "  Все запросы идут только через petshelter-api-1."
-
-pause
+demo_failover "petshelter-api-2" "$SHELTER_URL/api/animals"   "petshelter-api-1"
+demo_failover "vetclinic-api-2"  "$CLINIC_URL/api/statistics" "vetclinic-api-1"
 
 
-divider "ШАГ 5 — Восстановление petshelter-api-2"
+divider "ШАГ 8 — Проверка вручную (curl)"
 
-echo "  Запускаем petshelter-api-2..."
-docker compose start petshelter-api-2
+echo "  Заголовок X-Served-By можно проверить в любой момент:"
 echo
-echo "  Ожидание: Caddy вернёт инстанс в ротацию после успешного health-check (10 сек)..."
-sleep 12
+echo "    curl -sI $SHELTER_URL/api/animals | grep -i x-served-by"
+echo "    curl -sI $CLINIC_URL/api/statistics | grep -i x-served-by"
 echo
-docker compose ps petshelter-api-1 petshelter-api-2
-echo
-echo "  Отправляем $REQUESTS запросов:"
-echo
-
-send_requests "$SHELTER_URL/api/animals"
-echo
-echo "  Нагрузка снова распределена между двумя инстансами."
-
-pause
-
-
-divider "ШАГ 6 — Проверка вручную (curl)"
-
-echo "  Можно также проверить заголовок вручную:"
-echo
-echo "    curl -sI $SHELTER_URL/api/animals | grep x-served-by"
-echo
-curl -sI "$SHELTER_URL/api/animals" | grep -i x-served-by || true
-curl -sI "$SHELTER_URL/api/animals" | grep -i x-served-by || true
-curl -sI "$SHELTER_URL/api/animals" | grep -i x-served-by || true
-curl -sI "$SHELTER_URL/api/animals" | grep -i x-served-by || true
+for url in "$SHELTER_URL/api/animals"    "$SHELTER_URL/api/animals" \
+           "$CLINIC_URL/api/statistics"  "$CLINIC_URL/api/statistics"; do
+    curl -sI "$url" | grep -i x-served-by || true
+done
 
 divider "Демонстрация завершена"
 echo "  Метрики по инстансам в Prometheus:"
 echo "    http://localhost:9090"
 echo "    rate(http_requests_received_total{job=\"petshelter-api\"}[1m])"
+echo "    rate(http_requests_received_total{job=\"vetclinic-api\"}[1m])"
